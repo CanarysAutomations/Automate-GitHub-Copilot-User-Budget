@@ -62,3 +62,34 @@ unaltereduser,200.00
 ### 2. Triggering the Sync
 - **Manual Run**: Navigate to the **Actions** tab, select the **Automate GitHub Copilot User Budget (UBB)** workflow, click **Run workflow**, verify the inputs, and start the execution.
 - **Automated Run**: The workflow runs automatically whenever you push updates to the `budgets.csv` file.
+
+### Complete YAML pipeline
+```
+name: Budget Allocation
+on:
+  push:
+    branches: [ "main" ]
+  paths:
+   - 'budgets.csv'
+
+  workflow_dispatch:
+
+jobs:
+  Allocation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Automate GitHub Copilot User Budget
+        uses: CanarysAutomations/Automate-GitHub-Copilot-User-Budget@v1
+        with:
+          # Path to the Excel budgets file
+          budgets_file: 'budgets.csv'
+          # GitHub Enterprise Slug
+          enterprise_slug: 'ENTERPRISE_SLUG'
+          # GitHub API Version
+          api_version: '2026-03-10'
+          # Personal Access Token with enterprise billing permissions
+          github_token: ${{ secrets.ENTERPRISE_BILLING_TOKEN }}
+
+```
