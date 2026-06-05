@@ -1,0 +1,17 @@
+{
+  "name": "aic-budget-manager",
+  "version": "1.0.4",
+  "description": "Sync user budgets from CSV to GitHub Enterprise Billing via REST API",
+  "main": "manage-budgets.js",
+  "scripts": {
+    "start": "node manage-budgets.js",
+    "test": "node test-manage-budgets.js",
+    "build": "ncc build manage-budgets.js -o dist"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vercel/ncc": "^0.38.4"
+  }
+}

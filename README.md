@@ -1,0 +1,64 @@
+# Automate GitHub Copilot User Budget (UBB)
+
+This GitHub Action automates the user budgets allocation from a CSV file inside your repository with your GitHub Enterprise Billing account.
+
+# Prerequisite
+
+GitHub Token with enterprise admin or billing manager permission.
+
+## Features
+
+- **Automatic Budget Management**: 
+  - If a user's budget is missing, it is **created**.
+  - If a user's budget exists but has a different amount, it is **updated**.
+  - If the budget matches the CSV file, it is skipped (left **unaltered**).
+- **Pagination Support**: Automatically pages through large sets of enterprise budgets (50 items per page) to retrieve all existing records.
+- **Audit Logging**: Generates a markdown execution report (`budget-run-report.md`) detailing created, updated, unaltered, and failed records, and publishes it directly to the GitHub Action run overview page.
+
+---
+
+## Workflow Inputs
+
+When triggering the action manually, the following parameters are available:
+
+| Input Name | Description | Required | Default Value |
+| :--- | :--- | :--- | :--- |
+| `budgets_file` | The path to the CSV budgets file inside the repository. | Yes | `budgets.csv` |
+| `enterprise_slug` | The slug version of your GitHub Enterprise name. | Yes | *None* |
+| `api_version` | The GitHub API version header. | Yes | `2026-03-10` |
+
+---
+
+## GitHub Setup & Configuration
+
+Follow these configuration steps in your GitHub repository:
+
+### 1. Set Repository Secrets
+1. Navigate to your repository -> **Settings** -> **Secrets and variables** -> **Actions**.
+2. Click **New repository secret** and add:
+   - `ENTERPRISE_BILLING_TOKEN`: A Personal Access Token (PAT) with enterprise billing management permissions (needs `admin:enterprise` scope).
+3. *(Optional)* Add `ENTERPRISE_SLUG` as a repository secret or variable so it is automatically provided.
+
+### 2. Grant Workflow Write Permissions
+The action commits the audit report (`budget-run-report.md`) back to the repository so you have a versioned audit trail.
+1. Navigate to your repository -> **Settings** -> **Actions** -> **General**.
+2. Scroll to **Workflow permissions**, select **Read and write permissions**.
+3. Click **Save**.
+
+---
+
+## Usage
+
+### 1. CSV File Layout
+Create a CSV file named `budgets.csv` in the root of your repository. The CSV must contain at least a **User** column and a **Budget** column:
+
+```csv
+User,Budget
+tim,150.00
+johndoe,120.00
+unaltereduser,200.00
+```
+
+### 2. Triggering the Sync
+- **Manual Run**: Navigate to the **Actions** tab, select the **Automate GitHub Copilot User Budget (UBB)** workflow, click **Run workflow**, verify the inputs, and start the execution.
+- **Automated Run**: The workflow runs automatically whenever you push updates to the `budgets.csv` file.

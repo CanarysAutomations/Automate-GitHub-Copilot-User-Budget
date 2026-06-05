@@ -1,0 +1,106 @@
+name: Auto Bundle and Release Action
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'manage-budgets.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'action.yml'
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: 'Version to release (e.g. 1.0.2 or v1.0.2)'
+        required: true
+
+permissions:
+  contents: write # Required to push bundle changes and create releases
+
+jobs:
+  bundle-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          # Fetch all history and tags so we can check if the tag exists
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Bundle
+        run: npm run build
+
+      - name: Commit and Push Changes (if changed)
+        id: git-commit
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # 1. If manual trigger, update package.json version
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_VERSION="${{ github.event.inputs.release_version }}"
+            VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
+            echo "Manual trigger: Setting package.json version to $VERSION"
+            
+            node -e "
+              const fs = require('fs');
+              const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              pkg.version = '$VERSION';
+              fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+            "
+            git add package.json
+          fi
+          
+          # Staging the bundle file
+          git add dist/index.js
+          
+          # Check if there are changes staged in git index
+          if git diff --cached --quiet; then
+            echo "No changes detected in bundle or package.json."
+          else
+            echo "Staged changes detected. Committing changes..."
+            git commit -m "build: Automate compiled dist/index.js bundle [skip ci]"
+            git push origin main
+          fi
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1. Fetch tags from remote to ensure local list is complete
+          git fetch --tags
+
+          # 2. Extract version (from inputs if manual, otherwise package.json)
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            INPUT_VERSION="${{ github.event.inputs.release_version }}"
+            VERSION=$(echo "$INPUT_VERSION" | sed 's/^v//')
+          else
+            VERSION=$(node -p "require('./package.json').version")
+          fi
+          
+          TAG="v$VERSION"
+          echo "Preparing release for tag $TAG..."
+
+          # 3. Check if release tag already exists
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists on remote. Skipping release creation."
+          else
+            echo "Tag $TAG does not exist. Publishing release..."
+            
+            # Using GitHub CLI to create the release. 
+            # This pushes the tag and publishes it to the GitHub Marketplace.
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --notes "Automated release of version $TAG containing the latest compiled changes."
+            
+            echo "Successfully published release $TAG to the Marketplace."
+          fi

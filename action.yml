@@ -1,0 +1,21 @@
+name: 'Automate GitHub Copilot User Budget (UBB)'
+description: 'Automate the process of adding or updating GitHub Copilot User Budget (UBB) based on a CSV file containing user budgets.'
+author: 'Your Name'
+inputs:
+  budgets_file:
+    description: 'Path to the CSV budgets file'
+    required: true
+    default: 'budgets.csv'
+  enterprise_slug:
+    description: 'GitHub Enterprise Slug'
+    required: true
+  api_version:
+    description: 'GitHub API Version'
+    required: true
+    default: '2026-03-10'
+  github_token:
+    description: 'Personal Access Token with enterprise billing permissions'
+    required: true
+runs:
+  using: 'node24'
+  main: 'dist/index.js' # Compiled or bundled JS file
