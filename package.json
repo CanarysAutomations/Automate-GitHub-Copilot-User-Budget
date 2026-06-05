@@ -1,6 +1,6 @@
 {
   "name": "aic-budget-manager",
-  "version": "1.0.4",
+  "version": "1.0.0",
   "description": "Sync user budgets from CSV to GitHub Enterprise Billing via REST API",
   "main": "manage-budgets.js",
   "scripts": {
