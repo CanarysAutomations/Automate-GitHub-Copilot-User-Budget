@@ -1,14 +1,6 @@
 name: Auto Bundle and Release Action
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'manage-budgets.js'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'action.yml'
   workflow_dispatch:
     
 permissions:
