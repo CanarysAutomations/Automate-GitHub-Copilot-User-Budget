@@ -1,4 +1,4 @@
-name: 'Automate GitHub Copilot User Budget (UBB)'
+name: 'Automate GitHub Copilot User Budget'
 description: 'Automate the process of adding or updating GitHub Copilot User Budget (UBB) based on a CSV file containing user budgets.'
 author: 'Your Name'
 branding:
