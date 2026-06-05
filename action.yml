@@ -1,6 +1,9 @@
 name: 'Automate GitHub Copilot User Budget (UBB)'
 description: 'Automate the process of adding or updating GitHub Copilot User Budget (UBB) based on a CSV file containing user budgets.'
 author: 'Your Name'
+branding:
+  icon: arrow-right-circle
+  color: blue
 inputs:
   budgets_file:
     description: 'Path to the CSV budgets file'
