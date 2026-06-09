@@ -205,6 +205,7 @@ async function runTests() {
 
   // Verify that report files were written
   assert.ok(fs.existsSync('allocation.csv'), "Report file allocation.csv must exist");
+  assert.ok(fs.existsSync('budget-run-report.md'), "Report file budget-run-report.md must exist");
   assert.ok(fs.existsSync('test-step-summary.md'), "Step summary file test-step-summary.md must exist");
 
   const csvContent = fs.readFileSync('allocation.csv', 'utf8');
@@ -249,6 +250,7 @@ async function runTests() {
   console.log("Cleaning up generated test files...");
   fs.unlinkSync('test-budgets.csv');
   fs.unlinkSync('allocation.csv');
+  fs.unlinkSync('budget-run-report.md');
   fs.unlinkSync('test-step-summary.md');
 
   console.log("Cleanup completed.");

@@ -319,16 +319,79 @@ function generateAllocationCSV() {
     console.error(`Warning: Failed to write allocation CSV: ${err.message}`);
   }
 
-  // 4. Save brief report to GitHub step summary if environment is present
+  // 4. Generate detailed markdown report
+  let md = `# GitHub Enterprise Billing Budgets Sync Report\n\n`;
+  md += `**Execution Time:** ${runSummary.dateTime}\n\n`;
+  md += `## Execution Summary\n`;
+  md += `- **Created User Budgets:** ${runSummary.created.length}\n`;
+  md += `- **Updated User Budgets:** ${runSummary.updated.length}\n`;
+  md += `- **Unaltered User Budgets:** ${runSummary.unaltered.length}\n`;
+  md += `- **Failed Operations:** ${runSummary.failed.length}\n\n`;
+
+  md += `## Execution Details\n\n`;
+
+  // 4.1. Created Table
+  md += `### Created Budgets 🆕\n`;
+  if (runSummary.created.length > 0) {
+    md += `| User | Budget Amount | Status |\n`;
+    md += `| :--- | :--- | :--- |\n`;
+    for (const item of runSummary.created) {
+      md += `| \`${item.user}\` | $${item.budget.toFixed(2)} | Success (Created) |\n`;
+    }
+  } else {
+    md += `*No new budgets were created.*\n`;
+  }
+  md += `\n`;
+
+  // 4.2. Updated Table
+  md += `### Updated Budgets 🔄\n`;
+  if (runSummary.updated.length > 0) {
+    md += `| User | Old Budget | New Budget | Status |\n`;
+    md += `| :--- | :--- | :--- | :--- |\n`;
+    for (const item of runSummary.updated) {
+      md += `| \`${item.user}\` | $${item.oldBudget.toFixed(2)} | $${item.newBudget.toFixed(2)} | Success (Updated) |\n`;
+    }
+  } else {
+    md += `*No budgets were updated.*\n`;
+  }
+  md += `\n`;
+
+  // 4.3. Unaltered Table
+  md += `### Unaltered Budgets ✅\n`;
+  if (runSummary.unaltered.length > 0) {
+    md += `| User | Budget Amount | Status |\n`;
+    md += `| :--- | :--- | :--- |\n`;
+    for (const item of runSummary.unaltered) {
+      md += `| \`${item.user}\` | $${item.budget.toFixed(2)} | Unaltered |\n`;
+    }
+  } else {
+    md += `*No budgets were left unaltered.*\n`;
+  }
+  md += `\n`;
+
+  // 4.4. Failed Table
+  md += `### Failed Operations ❌\n`;
+  if (runSummary.failed.length > 0) {
+    md += `| User | Attempted Action | Error Message |\n`;
+    md += `| :--- | :--- | :--- |\n`;
+    for (const item of runSummary.failed) {
+      md += `| \`${item.user}\` | **${item.action}** | \`${item.error}\` |\n`;
+    }
+  } else {
+    md += `*No operations failed during this run.*\n`;
+  }
+
+  // Save detailed report to budget-run-report.md
+  try {
+    fs.writeFileSync('budget-run-report.md', md, 'utf8');
+    console.log(`Markdown report saved to budget-run-report.md`);
+  } catch (err) {
+    console.error(`Warning: Failed to write budget-run-report.md: ${err.message}`);
+  }
+
+  // Save report to GitHub step summary if environment is present
   if (process.env.GITHUB_STEP_SUMMARY) {
     try {
-      let md = `# GitHub Enterprise Billing Budgets Allocation Report\n\n`;
-      md += `**Execution Time:** ${runSummary.dateTime}\n\n`;
-      md += `## Execution Summary\n`;
-      md += `- **Created User Budgets:** ${runSummary.created.length}\n`;
-      md += `- **Updated User Budgets:** ${runSummary.updated.length}\n`;
-      md += `- **Unaltered User Budgets:** ${runSummary.unaltered.length}\n`;
-      md += `- **Failed Operations:** ${runSummary.failed.length}\n\n`;
       fs.writeFileSync(process.env.GITHUB_STEP_SUMMARY, md, 'utf8');
       console.log(`GitHub Actions step summary updated.`);
     } catch (err) {
@@ -341,11 +404,6 @@ function generateAllocationCSV() {
  * Main function orchestrating the allocation
  */
 async function syncBudgets() {
-  if (!TOKEN || !ENTERPRISE) {
-    console.error("Missing required environment variables.");
-    process.exit(1);
-  }
-
   const headers = {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${TOKEN}`,
@@ -354,6 +412,10 @@ async function syncBudgets() {
   };
 
   try {
+    if (!TOKEN || !ENTERPRISE) {
+      throw new Error("Missing required environment variables: GITHUB_TOKEN or ENTERPRISE_SLUG.");
+    }
+
     // 1. Read input CSV file
     const newBudgets = parseCSV(FILE_PATH);
     if (newBudgets.length === 0) {
@@ -408,7 +470,14 @@ async function syncBudgets() {
 
 // Run the script if executed directly
 if (require.main === module) {
-  syncBudgets();
+  syncBudgets().then(() => {
+    if (runSummary.failed.length > 0) {
+      process.exit(1);
+    }
+  }).catch(err => {
+    console.error("Unhandled synchronization rejection:", err);
+    process.exit(1);
+  });
 }
 
 module.exports = {
