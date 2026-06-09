@@ -36,8 +36,8 @@ Follow these configuration steps in your GitHub repository:
 ### 1. Set Repository Secrets
 1. Navigate to your repository -> **Settings** -> **Secrets and variables** -> **Actions**.
 2. Click **New repository secret** and add:
-   - `ENTERPRISE_BILLING_TOKEN`: A Personal Access Token (PAT) with enterprise billing management permissions (needs `admin:enterprise` scope).
-3. *(Optional)* Add `ENTERPRISE_SLUG` as a repository secret or variable so it is automatically provided.
+   - `ENTERPRISE_BILLING_TOKEN`: Generate A Personal Access Token (PAT). The authenticated user must be an enterprise admin or billing manager (needs `manage_billing:copilot` scope).
+3. Add `ENTERPRISE_SLUG` as a repository secret or variable so it is automatically provided.
 
 ### 2. Grant Workflow Write Permissions
 The action commits the audit report (`budget-run-report.md`) back to the repository so you have a versioned audit trail.
