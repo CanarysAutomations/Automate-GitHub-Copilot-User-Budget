@@ -204,31 +204,55 @@ async function runTests() {
   assert.ok(fail2.error.includes('HTTP 500'), "Error should mention HTTP 500");
 
   // Verify that report files were written
-  assert.ok(fs.existsSync('budget-run-report.md'), "Report file budget-run-report.md must exist");
+  assert.ok(fs.existsSync('allocation.csv'), "Report file allocation.csv must exist");
   assert.ok(fs.existsSync('test-step-summary.md'), "Step summary file test-step-summary.md must exist");
 
-  const reportContent = fs.readFileSync('budget-run-report.md', 'utf8');
-  console.log("\nGenerated Report Content Preview:\n======================================");
-  console.log(reportContent);
+  const csvContent = fs.readFileSync('allocation.csv', 'utf8');
+  console.log("\nGenerated CSV Content Preview:\n======================================");
+  console.log(csvContent);
   console.log("======================================\n");
 
-  // Assert report content verification
-  assert.ok(reportContent.includes('| `sidd` | $150.00 | Success (Created) |'), "Report should contain created user sidd");
-  assert.ok(reportContent.includes('| `johndoe` | $100.00 | $120.00 | Success (Updated) |'), "Report should contain updated user johndoe");
-  assert.ok(reportContent.includes('| `UnalteredUser` | $200.00 | Unaltered |'), "Report should contain unaltered user UnalteredUser");
+  // Assert CSV content verification
+  const csvLines = csvContent.trim().split('\n');
+  assert.strictEqual(csvLines[0], 'user,budget,status,from,to', "CSV headers must be user,budget,status,from,to");
+  assert.ok(csvLines.includes('sidd,150.00,create,0.00,150.00'), "CSV should contain created user sidd");
+  assert.ok(csvLines.includes('johndoe,120.00,updated,100.00,120.00'), "CSV should contain updated user johndoe");
+  assert.ok(csvLines.includes('UnalteredUser,200.00,unaltered,200.00,200.00'), "CSV should contain unaltered user UnalteredUser");
+
+  // Test incremental update of allocation.csv
+  console.log("Testing incremental updates of allocation.csv...");
+  // Modify the runSummary to simulate a second run
+  manageBudgets.runSummary.created = [{ user: "newuser", budget: 75.00 }];
+  manageBudgets.runSummary.updated = [{ user: "sidd", oldBudget: 150.00, newBudget: 180.00 }];
+  manageBudgets.runSummary.unaltered = []; // johndoe and UnalteredUser should remain from previous file but status will not change unless they run again
+
+  // Run generation again
+  manageBudgets.generateAllocationCSV();
+
+  const updatedCsvContent = fs.readFileSync('allocation.csv', 'utf8');
+  console.log("\nUpdated CSV Content Preview:\n======================================");
+  console.log(updatedCsvContent);
+  console.log("======================================\n");
+
+  const updatedCsvLines = updatedCsvContent.trim().split('\n');
+  assert.strictEqual(updatedCsvLines[0], 'user,budget,status,from,to');
   
-  // Assert failed operations table verification
-  assert.ok(reportContent.includes('| `erroruser` | **CREATE** | `HTTP 422: GitHub Copilot allocation failed` |'), "Report should show erroruser create failure");
-  assert.ok(reportContent.includes('| `patcherroruser` | **UPDATE** | `HTTP 500: Internal Server Error` |'), "Report should show patcherroruser update failure");
+  // New user should be added
+  assert.ok(updatedCsvLines.includes('newuser,75.00,create,0.00,75.00'), "CSV should contain newly created user");
+  // Sidd should be updated
+  assert.ok(updatedCsvLines.includes('sidd,180.00,updated,150.00,180.00'), "CSV should contain updated sidd");
+  // johndoe and UnalteredUser should still exist with their previous values
+  assert.ok(updatedCsvLines.includes('johndoe,120.00,updated,100.00,120.00'), "CSV should still contain johndoe");
+  assert.ok(updatedCsvLines.includes('UnalteredUser,200.00,unaltered,200.00,200.00'), "CSV should still contain UnalteredUser");
 
   // Clean up files
   console.log("Cleaning up generated test files...");
   fs.unlinkSync('test-budgets.csv');
-  fs.unlinkSync('budget-run-report.md');
+  fs.unlinkSync('allocation.csv');
   fs.unlinkSync('test-step-summary.md');
 
   console.log("Cleanup completed.");
-  console.log("\nSUCCESS: All advanced scenario budget sync validation tests passed!");
+  console.log("\nSUCCESS: All advanced scenario budget allocation validation tests passed!");
 }
 
 runTests().catch(err => {

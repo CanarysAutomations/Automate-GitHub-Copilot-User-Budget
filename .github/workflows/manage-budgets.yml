@@ -45,19 +45,9 @@ jobs:
           API_VERSION: ${{ github.event.inputs.api_version || '2026-03-10' }}
         run: node manage-budgets.js
 
-      - name: Commit Sync Report
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          if [ -f budget-run-report.md ]; then
-            git add budget-run-report.md
-            git commit -m "docs: Update budget sync execution report [skip ci]" || echo "No changes to commit"
-            git push || echo "Push failed (e.g. permission error or branch protection). Proceeding."
-          fi
-
-      - name: Upload Report Artifact
+      - name: Upload Allocation Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: budget-run-report
-          path: budget-run-report.md
+          name: budget-allocation
+          path: allocation.csv
