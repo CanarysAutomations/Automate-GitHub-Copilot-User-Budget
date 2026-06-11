@@ -13,7 +13,7 @@ GitHub Token with enterprise admin or billing manager permission.
   - If a user's budget exists but has a different amount, it is **updated**.
   - If the budget matches the CSV file, it is skipped (left **unaltered**).
 - **Pagination Support**: Automatically pages through large sets of enterprise budgets (50 items per page) to retrieve all existing records.
-- **Audit Logging**: Generates a markdown execution report (`budget-run-report.md`) detailing created, updated, unaltered, and failed records, and publishes it directly to the GitHub Action run overview page.
+- **Audit Logging**: Generates a execution report (`budget-run-report.md` and `allocation.csv`) detailing created, updated, unaltered, and failed records, and publishes it directly to the GitHub Action run overview page.
 
 ---
 
