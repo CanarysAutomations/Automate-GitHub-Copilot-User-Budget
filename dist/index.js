@@ -201,12 +201,131 @@ async function updateBudget(baseUrl, headers, budgetId, username, amount) {
 }
 
 /**
- * Writes the execution report file and Actions step summary
+ * Formats a value as a float to 2 decimal places if it's a number
+ * @param {any} val Value to format
+ * @returns {string} Formatted string
  */
-function generateReport() {
-  const reportPath = 'budget-run-report.md';
-  console.log(`Generating markdown report at: ${reportPath}`);
+function formatAmount(val) {
+  const num = parseFloat(val);
+  return isNaN(num) ? String(val) : num.toFixed(2);
+}
 
+/**
+ * Parses an existing allocation.csv file if it exists in the workspace
+ * @param {string} filePath Path to the CSV file
+ * @returns {Map<string, object>} Map of user-scoped allocations keyed by username (lowercased)
+ */
+function parseAllocationCSV(filePath) {
+  const map = new Map();
+  if (!fs.existsSync(filePath)) {
+    return map;
+  }
+  try {
+    const workbook = xlsx.readFile(filePath);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const rows = xlsx.utils.sheet_to_json(worksheet);
+    
+    for (const row of rows) {
+      let userVal = null;
+      let budgetVal = null;
+      let statusVal = null;
+      let fromVal = null;
+      let toVal = null;
+      
+      for (const key of Object.keys(row)) {
+        const normKey = key.trim().toLowerCase();
+        if (normKey === 'user') userVal = row[key];
+        else if (normKey === 'budget') budgetVal = row[key];
+        else if (normKey === 'status') statusVal = row[key];
+        else if (normKey === 'from') fromVal = row[key];
+        else if (normKey === 'to') toVal = row[key];
+      }
+      
+      if (userVal !== null) {
+        const username = String(userVal).trim();
+        map.set(username.toLowerCase(), {
+          user: username,
+          budget: formatAmount(budgetVal),
+          status: statusVal,
+          from: formatAmount(fromVal),
+          to: formatAmount(toVal)
+        });
+      }
+    }
+  } catch (err) {
+    console.warn(`Could not parse existing allocation.csv, starting fresh: ${err.message}`);
+  }
+  return map;
+}
+
+/**
+ * Creates or updates allocation.csv with the run results and updates Actions step summary
+ */
+function generateAllocationCSV() {
+  const reportPath = 'allocation.csv';
+  console.log(`Generating/updating allocation CSV at: ${reportPath}`);
+
+  // 1. Read existing allocation.csv if it exists
+  const allocationMap = parseAllocationCSV(reportPath);
+
+  // 2. Update/upsert the map with current run's allocations
+  // Process created
+  for (const item of runSummary.created) {
+    allocationMap.set(item.user.toLowerCase(), {
+      user: item.user,
+      budget: formatAmount(item.budget),
+      status: 'create',
+      from: '0.00',
+      to: formatAmount(item.budget)
+    });
+  }
+
+  // Process updated
+  for (const item of runSummary.updated) {
+    allocationMap.set(item.user.toLowerCase(), {
+      user: item.user,
+      budget: formatAmount(item.newBudget),
+      status: 'updated',
+      from: formatAmount(item.oldBudget),
+      to: formatAmount(item.newBudget)
+    });
+  }
+
+  // Process unaltered
+  for (const item of runSummary.unaltered) {
+    allocationMap.set(item.user.toLowerCase(), {
+      user: item.user,
+      budget: formatAmount(item.budget),
+      status: 'unaltered',
+      from: formatAmount(item.budget),
+      to: formatAmount(item.budget)
+    });
+  }
+
+  // 3. Construct CSV content
+  const headers = ['user', 'budget', 'status', 'from', 'to'];
+  let csvContent = headers.join(',') + '\n';
+  
+  for (const record of allocationMap.values()) {
+    const row = [
+      record.user,
+      record.budget,
+      record.status,
+      record.from,
+      record.to
+    ];
+    csvContent += row.join(',') + '\n';
+  }
+
+  try {
+    fs.writeFileSync(reportPath, csvContent, 'utf8');
+    console.log(`Allocation CSV saved to ${reportPath}`);
+  } catch (err) {
+    console.error(`Warning: Failed to write allocation CSV: ${err.message}`);
+  }
+
+  // 4. Generate detailed markdown report
   let md = `# GitHub Enterprise Billing Budgets Sync Report\n\n`;
   md += `**Execution Time:** ${runSummary.dateTime}\n\n`;
   md += `## Execution Summary\n`;
@@ -217,7 +336,7 @@ function generateReport() {
 
   md += `## Execution Details\n\n`;
 
-  // 1. Created Table
+  // 4.1. Created Table
   md += `### Created Budgets 🆕\n`;
   if (runSummary.created.length > 0) {
     md += `| User | Budget Amount | Status |\n`;
@@ -230,7 +349,7 @@ function generateReport() {
   }
   md += `\n`;
 
-  // 2. Updated Table
+  // 4.2. Updated Table
   md += `### Updated Budgets 🔄\n`;
   if (runSummary.updated.length > 0) {
     md += `| User | Old Budget | New Budget | Status |\n`;
@@ -243,7 +362,7 @@ function generateReport() {
   }
   md += `\n`;
 
-  // 3. Unaltered Table
+  // 4.3. Unaltered Table
   md += `### Unaltered Budgets ✅\n`;
   if (runSummary.unaltered.length > 0) {
     md += `| User | Budget Amount | Status |\n`;
@@ -256,7 +375,7 @@ function generateReport() {
   }
   md += `\n`;
 
-  // 4. Failed Table
+  // 4.4. Failed Table
   md += `### Failed Operations ❌\n`;
   if (runSummary.failed.length > 0) {
     md += `| User | Attempted Action | Error Message |\n`;
@@ -268,9 +387,13 @@ function generateReport() {
     md += `*No operations failed during this run.*\n`;
   }
 
-  // Save report to file
-  fs.writeFileSync(reportPath, md, 'utf8');
-  console.log(`Markdown report saved to ${reportPath}`);
+  // Save detailed report to budget-run-report.md
+  try {
+    fs.writeFileSync('budget-run-report.md', md, 'utf8');
+    console.log(`Markdown report saved to budget-run-report.md`);
+  } catch (err) {
+    console.error(`Warning: Failed to write budget-run-report.md: ${err.message}`);
+  }
 
   // Save report to GitHub step summary if environment is present
   if (process.env.GITHUB_STEP_SUMMARY) {
@@ -284,14 +407,9 @@ function generateReport() {
 }
 
 /**
- * Main function orchestrating the synchronization
+ * Main function orchestrating the allocation
  */
 async function syncBudgets() {
-  if (!TOKEN || !ENTERPRISE) {
-    console.error("Missing required environment variables.");
-    process.exit(1);
-  }
-
   const headers = {
     'Accept': 'application/vnd.github+json',
     'Authorization': `Bearer ${TOKEN}`,
@@ -300,18 +418,22 @@ async function syncBudgets() {
   };
 
   try {
+    if (!TOKEN || !ENTERPRISE) {
+      throw new Error("Missing required environment variables: GITHUB_TOKEN or ENTERPRISE_SLUG.");
+    }
+
     // 1. Read input CSV file
     const newBudgets = parseCSV(FILE_PATH);
     if (newBudgets.length === 0) {
       console.log("No valid user budgets found in the input spreadsheet. Exiting.");
-      generateReport();
+      generateAllocationCSV();
       return;
     }
 
     // 2. Fetch existing user-scoped budgets from GitHub
     const existingBudgets = await fetchExistingBudgets(API_BASE_URL, headers);
 
-    // 3. Process each record from Excel
+    // 3. Process each record from CSV
     for (const record of newBudgets) {
       const usernameLower = record.user.toLowerCase();
       const newAmount = record.budget;
@@ -344,17 +466,24 @@ async function syncBudgets() {
     }
 
   } catch (error) {
-    console.error("FATAL ERROR: Budget synchronization failed:", error.message);
+    console.error("FATAL ERROR: Budget allocation failed:", error.message);
     runSummary.failed.push({ user: 'SYSTEM', action: 'INITIALIZE', error: error.message });
   } finally {
     // 4. Always build the report at the end
-    generateReport();
+    generateAllocationCSV();
   }
 }
 
 // Run the script if executed directly
 if (require.main === require.cache[eval('__filename')]) {
-  syncBudgets();
+  syncBudgets().then(() => {
+    if (runSummary.failed.length > 0) {
+      process.exit(1);
+    }
+  }).catch(err => {
+    console.error("Unhandled synchronization rejection:", err);
+    process.exit(1);
+  });
 }
 
 module.exports = {
@@ -363,8 +492,11 @@ module.exports = {
   createBudget,
   updateBudget,
   syncBudgets,
-  runSummary
+  runSummary,
+  generateAllocationCSV,
+  parseAllocationCSV
 };
+
 
 
 /***/ }),

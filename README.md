@@ -91,5 +91,13 @@ jobs:
           api_version: '2026-03-10'
           # Personal Access Token with enterprise billing permissions
           github_token: ${{ secrets.ENTERPRISE_BILLING_TOKEN }}
+      
+      - name: Upload Budget Reports
+            uses: actions/upload-artifact@v4
+            with:
+                name: budget-allocation-report
+                path: |
+                  allocation.csv
+                  budget-run-report.md
 
 ```
